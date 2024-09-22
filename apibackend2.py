@@ -1,80 +1,80 @@
-const express = require('express');
-const bodyParser = require('body-parser');
-const mime = require('mime-types');
-const atob = require('atob');  
+from flask import Flask, request, jsonify
+import logging
+import re
+import base64
+import mimetypes
 
-const app = express();
+app = Flask(__name__)
 
-app.use(bodyParser.json());
+logging.basicConfig(level=logging.INFO)
 
-const handleFile = (fileB64) => {
-    try {
-        const fileBuffer = Buffer.from(fileB64, 'base64'); 
-        const fileSizeKb = fileBuffer.length / 1024; 
-        const mimeType = mime.lookup(fileB64);  
+def handle_file(file_b64):
+    try:
+        file_data = base64.b64decode(file_b64)
+        file_size_kb = len(file_data) // 1024  
 
-        if (mimeType) {
-            return { isValid: true, mimeType, fileSizeKb };
-        } else {
-            return { isValid: false };
+        mime_type = mimetypes.guess_type(file_b64)[0]
+
+        if mime_type:
+            return True, mime_type, file_size_kb
+        else:
+            return False, None, None
+
+    except Exception as e:
+        logging.error(f"File processing error: {e}")
+        return False, None, None
+
+@app.route('/bfhl', methods=['POST'])
+def process_request():
+    try:
+        data = request.get_json()
+        logging.info(f"Received data: {data}")
+
+        full_name = "john_doe"
+        dob = "17091999"
+        email = "john@xyz.com"
+        roll_number = "ABCD123"
+        user_id = f"{full_name}_{dob}"
+
+        data_list = data.get("data", [])
+        
+        file_b64 = data.get("file_b64")
+        file_valid = False
+        file_mime_type = None
+        file_size_kb = None
+
+        if file_b64:
+            file_valid, file_mime_type, file_size_kb = handle_file(file_b64)
+
+        numbers = [item for item in data_list if item.isdigit()]
+        alphabets = [item for item in data_list if item.isalpha()]
+
+        lowercase_alphabets = [char for char in alphabets if char.islower()]
+        highest_lowercase_alphabet = max(lowercase_alphabets) if lowercase_alphabets else None
+
+        response = {
+            "is_success": True,
+            "user_id": user_id,
+            "email": email,
+            "roll_number": roll_number,
+            "numbers": numbers,
+            "alphabets": alphabets,
+            "highest_lowercase_alphabet": [highest_lowercase_alphabet] if highest_lowercase_alphabet else [],
+            "file_valid": file_valid,
+            "file_mime_type": file_mime_type,
+            "file_size_kb": file_size_kb
         }
-    } catch (error) {
-        console.error("File handling error:", error);
-        return { isValid: false };
-    }
-};
 
-app.post('/bfhl', (req, res) => {
-    try {
-        const { data = [], file_b64 } = req.body;
+        logging.info(f"Response to send: {response}")
+        return jsonify(response), 200
 
-        // Hardcoded user details
-        const fullName = "john_doe";
-        const dob = "17091999";
-        const email = "john@xyz.com";
-        const rollNumber = "ABCD123";
-        const userId = `${fullName}_${dob}`;
+    except Exception as e:
+        logging.error(f"Error processing request: {e}")
+        return jsonify({"is_success": False, "error": str(e)}), 400
 
-        // Separate numbers and alphabets from the data array
-        const numbers = data.filter(item => /^\d+$/.test(item));
-        const alphabets = data.filter(item => /^[A-Za-z]$/.test(item));
+@app.route('/bfhl', methods=['GET'])
+def operation_code():
+    return jsonify({"operation_code": 1}), 200
 
-        // Find the highest lowercase alphabet
-        const lowercaseAlphabets = alphabets.filter(char => char === char.toLowerCase());
-        const highestLowercaseAlphabet = lowercaseAlphabets.length > 0 ? [Math.max(...lowercaseAlphabets)] : [];
-
-        // Handle file if provided
-        let fileDetails = { isValid: false };
-        if (file_b64) {
-            fileDetails = handleFile(file_b64);
-        }
-
-        const response = {
-            is_success: true,
-            user_id: userId,
-            email: email,
-            roll_number: rollNumber,
-            numbers: numbers,
-            alphabets: alphabets,
-            highest_lowercase_alphabet: highestLowercaseAlphabet,
-            file_valid: fileDetails.isValid,
-            file_mime_type: fileDetails.isValid ? fileDetails.mimeType : null,
-            file_size_kb: fileDetails.isValid ? fileDetails.fileSizeKb : null
-        };
-
-        res.status(200).json(response);
-    } catch (error) {
-        console.error("Error processing request:", error);
-        res.status(400).json({ is_success: false, error: error.message });
-    }
-});
-
-app.get('/bfhl', (req, res) => {
-    res.status(200).json({ operation_code: 1 });
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-    console.log(`Server is running on port ${PORT}`);
-});
-
+if __name__ == '__main__':
+    app.run(debug=True)
